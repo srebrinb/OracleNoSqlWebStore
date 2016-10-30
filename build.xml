@@ -1,0 +1,1927 @@
+<?xml version="1.0"?>
+
+<!-- ============================================ -->
+<!-- Ant Build File for KVStore                   -->
+<!-- ============================================ -->
+
+<project name="KV" default="jar" basedir="."
+	 xmlns:ivy="antlib:org.apache.ivy.ant">
+  <description>Compile and test KVStore</description>
+
+  <fail message="Ant 1.8.0 or greater is required">
+    <condition><not><antversion atleast="1.8.0"/></not></condition>
+  </fail>
+
+  <property file="build.properties"/>
+  <property file="extlib-revision.properties"/>
+
+  <property name="srcdir" value="${basedir}/src"/>
+  <property name="builddir" value="${basedir}/build"/>
+  <property name="destdir" value="${builddir}/classes"/>
+  <property name="libdir" value="${basedir}/lib"/>
+  <property name="bindir" value="${basedir}/bin"/>
+  <property name="exttabbindir" value="${basedir}/exttab/bin"/>
+  <property name="example.srcdir" value="${basedir}/examples"/>
+  <property name="example.destdir" value="${builddir}/examples/classes"/>
+  <property name="extlibdir" value="${libdir}/kv-external"/>
+  <property name="docdir" value="${basedir}/doc"/>
+  <property name="dist.dir" value="${basedir}/dist"/>
+  <property name="dist.exttabbindir" value="${basedir}/dist/exttab/bin"/>
+  <property name="dist.exampledir" value="${basedir}/dist/examples"/>
+  <property name="dist.libdir" value="${basedir}/dist/lib"/>
+  <property name="dist.destdir" value="${builddir}/dist"/>
+  <property name="dist.srcdir" value="${basedir}/dist/src"/>
+  <property name="dist.testdir" value="${basedir}/dist/test"/>
+  <property name="miscdir" value="${basedir}/misc"/>
+  <property name="test.srcdir" value="${basedir}/test"/>
+  <property name="test.destdir" value="${builddir}/test/classes"/>
+  <property name="test.kvsandbox" value="${builddir}/kvsandbox"/>
+  <property name="test.policy" value="${test.srcdir}/unittest.security.policy"/>
+  <property name="standalone.destdir" value="${builddir}/test/standalone"/>
+  <property name="javadoc" value="${dist.dir}/doc/javadoc"/>
+  <property name="javadoc.proxy.host" value=""/>
+  <property name="javadoc.proxy.port" value="80"/>
+  <property name="example.javadoc" value="${dist.dir}/doc/examples"/>
+  <property name="jarfile" value="${dist.libdir}/kvstore.jar"/>
+  <property name="jareefile" value="${dist.libdir}/kvstore-ee.jar"/>
+  <property name="kvclientjarfile" value="${dist.libdir}/kvclient.jar"/>
+  <property name="testjarfile" value="${dist.libdir}/kvstoretest.jar"/>
+  <property name="version" value=""/>
+  <property name="build.debug" value="on"/>
+  <property name="build.deprecation" value="off"/>
+  <property name="jdk.version" value="1.6"/>
+  <property name="webapp.srcdir" value="${basedir}/webapp"/>
+  <property name="webapp.warsrc" value="${basedir}/resources/war/KVAdminUI"/>
+  <property name="rscdir" value="${builddir}/resources"/>
+  <property name="webapp.wardir" value="${rscdir}/war/KVAdminUI"/>
+  <property name="exttab.sqlsrc" value="${basedir}/resources/sql"/>
+  <property name="exttab.rscdir" value="${rscdir}/sql"/>
+  <property name="version.rscdir" value="${rscdir}/version"/>
+  <property name="webapp.classdir" value="${webapp.wardir}/WEB-INF/classes"/>
+  <property name="build.propertyfile"
+	    value="${dist.destdir}/build.properties"/>
+  <property name="snmp.generated.dir"
+	    value="${srcdir}/oracle/kv/impl/mgmt/snmp/generated"/>
+  <property name="mib.srcdir" value="${basedir}/resources/snmp"/>
+  <property name="mib.rscdir" value="${rscdir}/snmp"/>
+  <property name="mib.file" value="nosql.mib"/>
+  <property name="mibcore.file" value="mib_core.txt"/>
+  <property name="zipfile-ce" value="${basedir}/kv-ce.zip"/>
+  <property name="zipfile-ee" value="${basedir}/kv-ee.zip"/>
+  <property name="msg_file_name" value="messages.properties"/>
+  <property name="msg_file_name_us" value="messages_en_US.properties"/>
+  <property name="msgs_src_dir"  value="${basedir}/resources/msgs"/>
+  <property name="rpmbuilddir" value="${builddir}/rpm"/>
+
+  <!--
+    Can be used to override JVM args for <java> tasks, for example:
+      ant "-Djvmargs=-Xmx32M -client" ...
+  -->
+  <property name="jvmargs" value=""/>
+
+  <!--
+    Can be used to specify a different JVM for <java> tasks, for example:
+      ant "-Djvm=/usr/local/jdk1.6.0_01/bin/java" ...
+  -->
+  <property name="jvm" value="java"/>
+
+  <!-- Specify override arguments to standalone tests -->
+  <property name="args" value=""/>
+
+  <!-- JAR files to put in kvstore.jar classpath. -->
+  <property name="jar.dependencies"
+            value="je.jar
+                   gwt-servlet.jar
+                   jetty-continuation.jar
+                   jetty-http.jar
+                   jetty-io.jar
+                   jetty-security.jar
+                   jetty-server.jar
+                   jetty-servlet.jar
+                   jetty-util.jar
+                   jetty-webapp.jar
+                   jetty-xml.jar
+                   servlet-api.jar
+		   jackson-core-asl.jar
+		   jackson-mapper-asl.jar
+		   avro.jar"/>
+
+  <property name="jaree.dependencies"
+	    value="kvstore-ee.jar
+		   jdmkrt.jar"/>
+
+  <!-- JAR files to put in kvclient.jar classpath -->
+  <property name="clientjar.dependencies"
+            value="jackson-core-asl.jar
+		   jackson-mapper-asl.jar
+		   avro.jar"/>
+
+  <!-- Make sure classpath is set, to avoid errors in FindBugs -->
+  <property name="classpath" value=""/>
+
+  <!-- Clover -->
+  <property name="clover.tmpdir" value="${basedir}/clover"/>
+  <property name="clover.initstring" location="${clover.tmpdir}/kvstorecoverage.db"/>
+  <!-- Should be changed to the path for clover.jar. -->
+  <property name="clover.libdir" value="/home/mingxing/software/apache-ant-1.8.2/lib"/>
+  <property name="clover.excludes" value="**/examples/** **/standalone/** **/standalone/api/**" />
+
+  <!-- Checkstyle -->
+  <property name="checkstyle.include" value="**/*.java"/>
+
+  <!-- Findbugs -->
+  <property name="findbugs.output"
+            value="emacs"/>
+  <property name="findbugs.output.file"
+            value=""/>
+
+  <!-- Eclipse warnings -->
+
+  <!-- Override to use a non-standard Eclipse properties file. -->
+  <property name="eclipse.properties"
+            value="${basedir}/misc/eclipse_properties.epf"/>
+
+  <!-- Set to empty (-Dwarnings.format=) for standard Eclipse format. -->
+  <property name="warnings.format" value="-Xemacs"/>
+
+  <!-- ============================================================ -->
+  <!-- Paths and filesets, referenced by ID                         -->
+  <!-- ============================================================ -->
+
+  <!-- Clover -->
+  <path id="clover.classpath">
+    <pathelement path="${clover.libdir}/clover.jar"/>
+    <pathelement path="${clover.libdir}/velocity.jar"/>
+    <pathelement path="${clover.libdir}/cenquatasks.jar"/>
+  </path>
+
+  <path id="src.classpath">
+    <pathelement path="${classpath}"/>
+    <fileset refid="libraries" />
+  </path>
+
+  <path id="webapp.classpath">
+    <pathelement path="${classpath}"/>
+    <pathelement location="${webapp.srcdir}"/>
+    <pathelement location="${webapp.classdir}"/>
+    <pathelement location="${destdir}"/>
+    <fileset refid="libraries" />
+    <pathelement location="${extlibdir}/gwt-dev.jar"/>
+    <pathelement location="${extlibdir}/gwt-user.jar"/>
+    <!--<pathelement location="${extlibdir}/gwt-servlet-deps.jar"/>-->
+    <pathelement location="${extlibdir}/validation-api.jar"/>
+    <pathelement location="${extlibdir}/validation-api-sources.jar"/>
+  </path>
+
+  <path id="mibgen.classpath">
+    <pathelement location="${extlibdir}/jdmkrt.jar"/>
+    <pathelement location="${extlibdir}/jdmktk.jar"/>
+  </path>
+
+  <path id="examples.classpath">
+    <pathelement path="${classpath}"/>
+    <pathelement location="${dist.libdir}/kvclient.jar"/>
+    <pathelement location="${dist.libdir}/kvstore-ee.jar"/>
+    <pathelement location="${extlibdir}/avro.jar"/>
+    <pathelement location="${extlibdir}/jackson-core-asl.jar"/>
+    <pathelement location="${extlibdir}/jackson-mapper-asl.jar"/>
+    <pathelement location="${extlibdir}/hadoop-core.jar"/>
+    <pathelement location="${extlibdir}/commons-logging.jar"/>
+  </path>
+
+  <path id="test.classpath">
+    <pathelement path="${classpath}"/>
+    <pathelement location="${dist.libdir}/kvstore.jar"/>
+    <pathelement location="${dist.libdir}/kvstore-ee.jar"/>
+    <pathelement location="${test.destdir}"/>
+    <pathelement location="${extlibdir}/junit.jar"/>
+    <pathelement location="${extlibdir}/easymock.jar"/>
+    <pathelement location="${example.destdir}"/>
+    <fileset refid="libraries" />
+    <pathelement path="${test.srcdir}"/>
+  </path>
+
+  <path id="testclient.classpath">
+    <pathelement path="${classpath}"/>
+    <pathelement location="${dist.libdir}/kvclient.jar"/>
+    <pathelement location="${extlibdir}/hadoop-core.jar"/>
+    <pathelement location="${extlibdir}/commons-logging.jar"/>
+    <pathelement location="${extlibdir}/avro.jar"/>
+    <pathelement location="${extlibdir}/jackson-core-asl.jar"/>
+    <pathelement location="${extlibdir}/jackson-mapper-asl.jar"/>
+    <pathelement location="${test.destdir}"/>
+    <pathelement location="${extlibdir}/junit.jar"/>
+  </path>
+
+  <path id="misc.class.path">
+    <pathelement location="${destdir}"/>
+    <pathelement location="."/>
+  </path>
+
+  <!-- Library JAR files to include in the classpath during building -->
+  <fileset id="libraries" dir="${libdir}">
+    <include name="**/*.jar"/>
+    <!-- gwt-dev is needed only when running gwtc; keep it out of the
+	 classpath otherwise. -->
+    <exclude name="**/gwt-dev.jar"/>
+    <exclude name="**/gwt-user.jar"/>
+    <!--<exclude name="**/gwt-servlet-deps.jar"/>-->
+    <exclude name="**/validation-api.jar"/>
+  </fileset>
+
+  <!-- Library JAR files to include during packaging -->
+  <fileset id="libraries.package" dir="${extlibdir}"
+           includes="${jar.dependencies} ${clientjar.dependencies}"/>
+
+  <fileset id="libraries.package-ee" dir="${extlibdir}"
+           includes="${jaree.dependencies}"/>
+
+  <fileset id="jarclasses" dir="${destdir}"
+	   excludes="oracle/kv/**/exttab/*.class,
+		     oracle/kv/impl/mgmt/snmp/*.class,
+		     oracle/kv/impl/mgmt/snmp/generated/*.class"
+           includes="oracle/**/*.class"/>
+
+  <fileset id="jareeclasses" dir="${destdir}"
+	   includes="oracle/kv/**/exttab/*.class,
+		     oracle/kv/impl/mgmt/snmp/*.class,
+		     oracle/kv/impl/mgmt/snmp/generated/*.class"/>
+
+  <fileset id="testclasses" dir="${test.destdir}"
+           includes="**/*.class"/>
+
+  <fileset id="testresources" dir="${test.srcdir}"
+           includes="standalone/datacheck/*.avsc"/>
+
+  <!-- Classes from JE required by the client -->
+  <!-- TODO: prune these back as possible -->
+  <fileset id="jeclientclasses" dir="${destdir}"
+	   includes="com/sleepycat/persist/EntityStore.class,
+		     com/sleepycat/je/DatabaseException.class,
+		     com/sleepycat/je/EnvironmentFailureException.class,
+		     com/sleepycat/je/RunRecoveryException.class,
+		     com/sleepycat/je/Transaction.class,
+		     com/sleepycat/je/log/Loggable.class,
+	             com/sleepycat/je/rep/ReplicatedEnvironment$State.class,
+		     com/sleepycat/je/utilint/DbLsn.class,
+		     com/sleepycat/je/utilint/PropUtil.class,
+		     com/sleepycat/je/utilint/VLSN.class,
+		     com/sleepycat/util/FastOutputStream.class,
+                     com/sleepycat/util/PackedInteger.class,
+		     com/sleepycat/util/UtfOps.class,
+		     com/sleepycat/utilint/*.class"
+	   />
+
+  <!-- Classes from the kv tree required for the client -->
+  <!-- TODO: prune these back as possible -->
+  <fileset id="kvclientclasses" dir="${destdir}"
+           includes="oracle/kv/*.class,
+		     oracle/kv/lob/*.class,
+		     oracle/kv/avro/*.class,
+		     oracle/kv/hadoop/*.class,
+		     oracle/kv/impl/admin/IllegalCommandException.class,
+		     oracle/kv/impl/admin/plan/BackupConfig*.class,
+		     oracle/kv/impl/api/**/*.class,
+		     oracle/kv/impl/fault/*.class,
+		     oracle/kv/impl/map/*.class,
+		     oracle/kv/impl/measurement/*.class,
+                     oracle/kv/impl/mgmt/RepNodeStatusReceiver.class,
+		     oracle/kv/impl/param/LoadParameters*.class
+		     oracle/kv/impl/rep/admin/RepNodeAdmin*.class,
+		     oracle/kv/impl/rep/admin/RepNodeAdminAPI*.class,
+		     oracle/kv/impl/rep/admin/RepNodeInfo*.class,
+		     oracle/kv/impl/rep/RepNodeStatus*.class,
+                     oracle/kv/impl/rep/migration/PartitionMigrationStatus*.class,
+                     oracle/kv/impl/test/TestHook*.class,
+                     oracle/kv/impl/topo/**/*.class,
+		     oracle/kv/impl/util/CommonLoggerUtils*.class,
+		     oracle/kv/impl/util/ConfigurableService*.class,
+		     oracle/kv/impl/util/FastExternalizable*.class,
+		     oracle/kv/impl/util/FormatUtils*.class,
+		     oracle/kv/impl/util/KVThreadFactory*.class,
+		     oracle/kv/impl/util/LogFormatter*.class,
+		     oracle/kv/impl/util/TopologyLocator*.class,
+		     oracle/kv/impl/util/Pair.class,
+		     oracle/kv/impl/util/PollCondition*.class,
+		     oracle/kv/impl/util/client/*.class,
+		     oracle/kv/impl/util/registry/*.class,
+		     oracle/kv/stats/*.class,
+		     oracle/kv/util/*.class">
+    <exclude name="oracle/kv/impl/api/RequestHandlerImpl*.class"/>
+    <exclude name="oracle/kv/impl/api/OperationHandler*.class"/>
+  </fileset>
+
+  <!-- We'll include this for now since we use it a lot, but
+	     ultimately it will not be included. -->
+  <fileset id="ycsbkvclient" dir="${test.destdir}"
+           includes="standalone/ycsb/KVClient*.class"/>
+
+  <fileset id="resources"
+	   dir="${rscdir}"
+	   excludes="**/*.sql,snmp/**"/>
+
+  <fileset id="resources-ee"
+	   dir="${rscdir}"
+	   includes="**/*.sql,snmp/**"/>
+
+  <fileset id="jarrable_messages" dir="${destdir}"
+           includes="**/*messages*.properties"/>
+
+  <path id="checkstyle.classpath">
+    <fileset dir="${extlibdir}"
+             includes="checkstyle.jar, antlr.jar, google-collections.jar,
+                       commons-beanutils-core.jar, commons-cli.jar,
+                       commons-logging.jar"/>
+  </path>
+
+  <path id="findbugs.classpath">
+    <fileset dir="${extlibdir}"
+             includes="findbugs.jar, annotations.jar, bcel.jar,
+                       jFormatString.jar, jsr305.jar, asm.jar, asm-commons.jar,
+                       asm-tree.jar, commons-lang.jar, dom4j.jar, jaxen.jar"/>
+  </path>
+
+  <!-- ============================================================ -->
+  <!-- Targets                                                      -->
+  <!-- ============================================================ -->
+
+  <target name="dep-dirs">
+    <mkdir dir="${clover.tmpdir}"/>
+    <mkdir dir="${destdir}"/>
+    <mkdir dir="${dist.dir}"/>
+    <mkdir dir="${dist.exttabbindir}"/>
+    <mkdir dir="${dist.exampledir}"/>
+    <mkdir dir="${dist.libdir}"/>
+    <mkdir dir="${dist.destdir}"/>
+    <mkdir dir="${example.destdir}"/>
+    <mkdir dir="${test.destdir}"/>
+    <mkdir dir="${test.kvsandbox}"/>
+    <mkdir dir="${standalone.destdir}"/>
+    <mkdir dir="${webapp.wardir}"/>
+    <mkdir dir="${webapp.classdir}"/>
+    <mkdir dir="${snmp.generated.dir}"/>
+    <mkdir dir="${exttab.rscdir}"/>
+    <mkdir dir="${version.rscdir}"/>
+  </target>
+
+  <!-- ============================================================  -->
+  <!-- Ivy targets used to manage external dependencies.  The ivy    -->
+  <!-- repository is on sleepycat.oracle.com in /a/kv_repo/ivy.      -->
+  <!-- Requires 3 settings                                           -->
+  <!--   1.  username on s.o.c (defaults to current user)            -->
+  <!--   2.  path to an ssh keyfile for soc.                         -->
+  <!--       Defaults to $HOME/.ssh/id_dsa                           -->
+  <!--   3.  pass phrase for the keyfile.  This is optional but      -->
+  <!--       Ivy requires something.  It has no default.             -->
+  <!-- The necessary configuration can be overridden on the ant      -->
+  <!-- command line or in a $HOME/.antrc file.  The former:          -->
+  <!-- ant -Divy.user=user -Divy.keyfile=path -Divy.keypassword=pass -->
+  <!-- The latter, in $HOME/.antrc:                                  -->
+  <!-- ANT_OPTS="-Divy.user=user -Divy.keyfile=path \                -->
+  <!--           -Divy.keypassword=passphrase"                       -->
+  <!-- If you have no passphrase on your keyfile, use "" as the      -->
+  <!-- passphrase.                                                   -->
+  <!--                                                               -->
+  <!-- See updatelibs.xml for information on updating or changing    -->
+  <!-- the library dependencies.                                     -->
+  <!-- ============================================================  -->
+
+  <!-- handles username/keyfile and is shared with updatelibs.xml -->
+  <import file="ivy.include.xml" as="KV"/>
+
+  <target name="can-we-skip-libs"
+	  description="--> only retrieve libraries if something has changed">
+    <!-- retrieve if the directory doesn't exist or if ivy.xml has -->
+    <!-- changed more recently than the external library directory -->
+    <condition property="do-retrieve">
+      <or>
+	<not>
+	  <available file="${extlibdir}"/>
+	</not>
+	<uptodate targetfile="ivy.xml">
+	  <srcresources>
+	    <dirset dir="${extlibdir}"/>
+	  </srcresources>
+	</uptodate>
+      </or>
+    </condition>
+  </target>
+
+  <!-- user-callable targets - resolve, clean, clean-cache -->
+  <target name="ivy-resolve"
+	  description="--> retreive dependencies with ivy"
+	  depends="dep-dirs,can-we-skip-libs"
+	  if="do-retrieve">
+    <antcall target="do-keyfile"/>
+  </target>
+
+  <target name="ivy-clean-cache"
+	  description="--> clean the ivy cache">
+    <!-- set a dummy property to allow ivysettings.xml to parse correctly -->
+    <property name="ivy.keyfile" value="/xyz"/>
+    <ivy:cleancache />
+  </target>
+
+  <target name="ivy-clean"
+	  description="--> remove the external libraries and directory">
+    <delete includeemptydirs="true">
+      <fileset dir="${extlibdir}"/>
+    </delete>
+  </target>
+
+  <!-- do-keyfile should not be called directly -->
+  <target name="do-keyfile"
+	  depends="get-user, default-keyfile, set-keyfile, get-keyfile, check-keyfile"
+	  if="do-retrieve">
+    <!-- if we get this far the libraries will be retrieved -->
+    <ivy:retrieve
+	pattern="${extlibdir}/[artifact](-[classifier]).[ext]"
+	type="jar" transitive="false"/>
+    <!-- update extlibdir to prevent unnecessary retrieval -->
+    <touch>
+      <fileset file="${extlibdir}"/>
+    </touch>
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Compile targets                                              -->
+  <!-- ============================================================ -->
+
+  <target name="compile" depends="compile-src,
+				  compile-webapp,
+				  compile-test"/>
+
+  <target name="gen-messages" depends="dep-dirs">
+    <javac
+      srcdir="${srcdir}"
+      destdir="${destdir}"
+      includeantruntime="true"
+      debug="${build.debug}"
+      deprecation="${build.deprecation}"
+      optimize="on"
+      source="${jdk.version}"
+      target="${jdk.version}"
+      classpathref="src.classpath"
+      failonerror="true">
+      <include name="oracle/kv/util/MessageFileProcessor.java"/>
+    </javac>
+
+    <java classname="oracle.kv.util.MessageFileProcessor" failonerror="true">
+      <arg value="-d"/>
+      <arg value="${basedir}"/>
+      <classpath>
+        <pathelement location="${destdir}"/>
+        <pathelement path="${java.class.path}"/>
+      </classpath>
+    </java>
+  </target>
+
+<!--  <target name="compile-src" depends="dep-dirs, update-external-libraries"> -->
+  <target name="compile-src" depends="ivy-resolve,mibgen,gen-messages">
+    <javac
+       srcdir="${srcdir}"
+       destdir="${destdir}"
+       includeantruntime="true"
+       debug="${build.debug}"
+       deprecation="${build.deprecation}"
+       optimize="on"
+       source="${jdk.version}"
+       target="${jdk.version}"
+       classpathref="src.classpath">
+        <!--
+        <compilerarg value="-Xlint:unchecked"/>
+        -->
+    </javac>
+  </target>
+
+  <target name="compile-examples" depends="jar,jar-ee,dep-dirs">
+    <javac
+       srcdir="${example.srcdir}"
+       destdir="${example.destdir}"
+       includeantruntime="true"
+       debug="${build.debug}"
+       deprecation="${build.deprecation}"
+       optimize="on"
+       source="${jdk.version}"
+       target="${jdk.version}"
+       classpathref="examples.classpath">
+        <!--
+        <compilerarg value="-Xlint:unchecked"/>
+        -->
+    </javac>
+  </target>
+
+  <target name="copy-war-resources" depends="dep-dirs">
+    <copy todir="${webapp.wardir}">
+      <fileset dir="${webapp.warsrc}">
+	<!-- Eclipse might have left junk in the src dir - don't copy it. -->
+	<exclude name="WEB-INF/classes/**/*"/>
+	<exclude name="WEB-INF/lib/**/*"/>
+	<exclude name="kvadminui/**/*"/>
+	<exclude name="genfilesforspeedtracer/**/*"/>
+	<exclude name="symbolsforspeedtracer/**/*"/>
+	<exclude name="symbolmanifest.json"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="copy-sql-resources" depends="dep-dirs">
+    <copy todir="${exttab.rscdir}">
+      <fileset dir="${exttab.sqlsrc}"/>
+    </copy>
+  </target>
+
+  <target name="copy-version-resource" depends="dep-dirs">
+    <copy todir="${version.rscdir}">
+      <fileset dir="${dist.destdir}" includes="build.properties"/>
+    </copy>
+  </target>
+
+  <target name="copy-snmp-resources" depends="dep-dirs">
+    <copy todir="${mib.rscdir}">
+      <fileset dir="${mib.srcdir}">
+	<exclude name="${mibcore.file}"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <!-- gwtc is a time-consuming task.  We do a rudimentary check to see if
+       the javascript translation is absolutely required. -->
+
+  <target name="can-we-skip-gwtc">
+    <uptodate targetfile="${webapp.wardir}/kvadminui/kvadminui.nocache.js"
+	      property="gwtc.not.needed">
+      <srcfiles dir="${webapp.srcdir}/oracle/kv/impl/admin/webapp/client"
+		includes="**/*"/>
+      <srcfiles dir="${webapp.srcdir}/oracle/kv/impl/admin/webapp/shared"
+		includes="**/*"/>
+    </uptodate>
+  </target>
+
+  <target name="compile-webapp-gwtc"
+	  depends="compile-webapp, copy-war-resources, can-we-skip-gwtc"
+	  unless="gwtc.not.needed">
+    <java failonerror="true" fork="true"
+	  classname="com.google.gwt.dev.Compiler">
+      <classpath>
+        <pathelement location="webapp"/>
+        <path refid="webapp.classpath"/>
+      </classpath>
+      <classpath>
+        <path refid="clover.classpath"/>
+      </classpath>
+      <jvmarg value="-Xmx256M"/>
+      <arg line="-style PRETTY -war ${webapp.wardir}"/>
+      <arg value="oracle.kv.impl.admin.webapp.KVAdminUI"/>
+    </java>
+  </target>
+
+  <target name="compile-webapp" depends="ivy-resolve, compile-src">
+    <javac
+       srcdir="${webapp.srcdir}"
+       destdir="${webapp.classdir}"
+       includeantruntime="true"
+       debug="${build.debug}"
+       deprecation="${build.deprecation}"
+       optimize="on"
+       source="${jdk.version}"
+       target="${jdk.version}"
+       classpathref="webapp.classpath">
+    </javac>
+  </target>
+
+  <target name="can-we-skip-mibgen">
+    <uptodate targetfile="${snmp.generated.dir}/OracleNosqlMIB.java"
+	      property="mibgen.not.needed">
+      <srcfiles dir="${mib.srcdir}"
+		includes="${mib.file}"/>
+    </uptodate>
+  </target>
+
+  <target name="mibgen" depends="dep-dirs,can-we-skip-mibgen"
+	  unless="mibgen.not.needed">
+    <java failonerror="true" fork="true"
+	  classname="com.sun.jdmk.tools.MibGen">
+      <classpath>
+	<path refid="mibgen.classpath"/>
+      </classpath>
+      <arg line="-mc -tp oracle.kv.impl.mgmt.snmp.generated"/>
+      <arg line="-d ${snmp.generated.dir}"/>
+      <arg line="${mib.srcdir}/${mib.file}"/>
+      <arg line="${mib.srcdir}/${mibcore.file}"/>
+    </java>
+  </target>
+
+  <target name="compile-test" depends="jar,jar-ee,dep-dirs,compile-examples">
+    <javac
+       srcdir="${test.srcdir}"
+       excludes="oracle/kv/release/**"
+       destdir="${test.destdir}"
+       includeantruntime="true"
+       debug="${build.debug}"
+       deprecation="${build.deprecation}"
+       optimize="on"
+       source="${jdk.version}"
+       target="${jdk.version}"
+       classpathref="test.classpath">
+        <!--
+        <compilerarg value="-Xlint:unchecked"/>
+        -->
+    </javac>
+  </target>
+
+  <target name="je-version" depends="compile-src">
+    <java fork="yes"
+          classname="oracle.kv.KVVersion"
+          outputproperty="version.result"
+          failonerror="false">
+      <classpath refid="misc.class.path"/>
+      <classpath refid="clover.classpath"/>
+    </java>
+  </target>
+
+  <target name="copy-message-files">
+    <copy todir="${destdir}">
+    <fileset dir="${msgs_src_dir}" includes="**/messages*.properties"/>
+    </copy>
+    <!-- Copy messages.properties to messages_en_us.properties -->
+    <copy file="${msgs_src_dir}/${msg_file_name}"
+          tofile="${destdir}/${msg_file_name_us}"/>
+  </target>
+
+  <target name="jar"
+	  depends="compile-src,compile-webapp-gwtc,je-version,kvclientjar,
+		   update-version,copy-message-files,copy-sql-resources,
+		   copy-version-resource, copy-snmp-resources">
+    <delete failonerror="false" file="${jarfile}" />
+    <!-- We put the EE .jar file in the Class-Path even for CE when it
+	 won't be present in the distribution. -->
+
+    <jar jarfile="${jarfile}">
+	<fileset refid="jarclasses"/>
+	<fileset refid="resources"/>
+	<fileset refid="jarrable_messages"/>
+	<manifest>
+	    <attribute name="Class-Path"
+		       value="${jar.dependencies} ${jaree.dependencies}"/>
+	    <attribute name="Main-Class"
+		       value="oracle.kv.impl.util.KVStoreMain"/>
+	    <attribute name="Implementation-Title"
+		       value="Oracle NoSQL Database"/>
+            <attribute name="Implementation-Version"
+                       value="${version.result}"/>
+	    <attribute name="Implementation-Vendor"
+		       value="Oracle"/>
+	    <attribute name="Implementation-URL"
+		       value="http://www.oracle.com/"/>
+	</manifest>
+    </jar>
+  </target>
+
+  <target name="jar-ee" depends="jar">
+    <delete failonerror="false" file="${jareefile}" />
+    <jar jarfile="${jareefile}">
+	<fileset refid="jareeclasses"/>
+	<fileset refid="resources-ee"/>
+	<manifest>
+	    <attribute name="Implementation-Title"
+		       value="Oracle NoSQL Database Enterprise Edition"/>
+            <attribute name="Implementation-Version"
+                       value="${version.result}"/>
+	    <attribute name="Implementation-Vendor"
+		       value="Oracle"/>
+	    <attribute name="Implementation-URL"
+		       value="http://www.oracle.com/"/>
+	</manifest>
+    </jar>
+  </target>
+
+  <target name="testjar" depends="compile-test">
+    <jar jarfile="${testjarfile}">
+	<fileset refid="testclasses"/>
+        <fileset refid="testresources"/>
+	<manifest>
+	    <attribute name="Class-Path"
+		       value="kvstore.jar junit.jar"/>
+	    <attribute name="Main-Class"
+		       value="oracle.kv.impl.util.KVStoreMain"/>
+	    <attribute name="Implementation-Title"
+		       value="Oracle NoSQL Database"/>
+            <attribute name="Implementation-Version"
+                       value="${version.result}"/>
+	    <attribute name="Implementation-Vendor"
+		       value="Oracle"/>
+	    <attribute name="Implementation-URL"
+		       value="http://www.oracle.com/"/>
+	</manifest>
+    </jar>
+  </target>
+
+  <target name="kvclientjar" depends="compile-src,unjarje">
+    <jar jarfile="${kvclientjarfile}">
+	<fileset refid="kvclientclasses"/>
+	<fileset refid="jeclientclasses"/>
+	<!-- TODO: Remove this -->
+	<fileset refid="ycsbkvclient"/>
+	<manifest>
+	    <attribute name="Class-Path"
+		       value="${clientjar.dependencies}"/>
+	    <attribute name="Main-Class"
+		       value="oracle.kv.KVVersion"/>
+	    <attribute name="Implementation-Title"
+		       value="Oracle NoSQL Database"/>
+            <attribute name="Implementation-Version"
+                       value="${version.result}"/>
+	    <attribute name="Implementation-Vendor"
+		       value="Oracle"/>
+	    <attribute name="Implementation-URL"
+		       value="http://www.oracle.com/"/>
+	</manifest>
+    </jar>
+  </target>
+
+  <!-- Pull selected JE classes from je.jar for kvclient.jar -->
+  <target name="unjarje">
+    <unjar src="${extlibdir}/je.jar" dest="${destdir}">
+      <patternset>
+	<include name="**/*.class"/>
+      </patternset>
+    </unjar>
+  </target>
+
+  <target name="copyjar" depends="jar,testjar">
+    <copy todir="${dist.libdir}" flatten="true">
+      <fileset refid="libraries.package"/>
+      <fileset file="${extlibdir}/junit.jar"/>
+    </copy>
+  </target>
+
+  <target name="copyjar-ee" depends="jar,jar-ee,testjar">
+    <copy todir="${dist.libdir}" flatten="true">
+      <fileset refid="libraries.package-ee"/>
+      <fileset file="${extlibdir}/junit.jar"/>
+    </copy>
+  </target>
+
+  <!-- NOTE: the chmod calls below are "undone" by the zip tool.
+       This may eventually be fixed in ant/zip but until then the
+       actual packaging needs to be sure to do an explicit chmod as well -->
+  <target name="copybin">
+    <copy todir="${dist.exttabbindir}" flatten="true">
+      <fileset dir="${exttabbindir}">
+	<include name="nosql_stream"/>
+      </fileset>
+    </copy>
+    <chmod file="${dist.exttabbindir}/nosql_stream" perm="ugo+rx"/>
+  </target>
+
+  <target name="copymib">
+    <copy file="${mib.srcdir}/${mib.file}" tofile="${dist.libdir}/${mib.file}"/>
+  </target>
+
+  <target name="copyexamples" depends="compile-examples">
+    <copy overwrite="true" todir="${dist.exampledir}">
+      <fileset dir="${example.srcdir}">
+	<include name="**/*"/>
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="build" depends="jar"/>
+
+  <target name="rebuild" depends="clean,jar"/>
+
+  <target name="build-all" depends="copyjar,copyjar-ee,copybin,copyexamples,copymib"/>
+
+  <target name="rebuild-all" depends="clean,build-all"/>
+
+  <!-- ============================================================ -->
+  <!-- Clean targets                                                -->
+  <!-- ============================================================ -->
+
+  <target name="clean" depends="dep-dirs, clean-src, clean-webapp,
+				clean-test, clean-examples, clean-dist,
+				clover-clean, clean-msgs, clean-sql,
+				clean-version, clean-rpms"/>
+
+  <target name="clean-src">
+    <delete>
+      <fileset dir="${destdir}"
+               includes="**/*.class, **/messages*.properties"/>
+      <fileset dir="${snmp.generated.dir}" includes="*.java,*.java~"/>
+    </delete>
+  </target>
+
+  <target name="clean-msgs">
+    <delete>
+      <fileset dir="${destdir}"
+               includes="**/messages*.properties"/>
+      </delete>
+  </target>
+
+  <target name="clean-webapp">
+    <delete>
+      <fileset dir="${webapp.wardir}"/>
+    </delete>
+    <delete failonerror="false">
+      <!-- eclipse might have left junk in the src dir - get rid of it. -->
+      <fileset dir="${webapp.warsrc}/WEB-INF/classes"/>
+      <fileset dir="${webapp.warsrc}/WEB-INF/lib"/>
+      <fileset dir="${webapp.warsrc}/kvadminui"/>
+      <fileset dir="${webapp.warsrc}/genfilesforspeedtracer"/>
+      <fileset dir="${webapp.warsrc}/symbolsforspeedtracer"/>
+      <fileset file="${webapp.warsrc}/symbolmanifest.json"/>
+    </delete>
+  </target>
+
+  <target name="clean-sql">
+    <delete>
+      <fileset dir="${exttab.rscdir}"/>
+    </delete>
+  </target>
+
+  <target name="clean-version">
+    <delete>
+      <fileset dir="${version.rscdir}"/>
+    </delete>
+  </target>
+
+  <target name="clean-test">
+    <delete>
+      <fileset dir="${test.destdir}"
+               includes="**/*.class"/>
+    </delete>
+  </target>
+
+  <target name="clean-examples">
+    <delete>
+      <fileset dir="${example.destdir}"
+               includes="**/*.class"/>
+    </delete>
+  </target>
+
+  <target name="clean-dist">
+    <delete dir="${dist.dir}"/>
+    <delete file="${zipfile-ce}"/>
+    <delete file="${zipfile-ee}"/>
+  </target>
+
+  <target name="clean-rpms">
+    <delete dir="${rpmbuilddir}"/>
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Run all the unit tests                                       -->
+  <!-- ============================================================ -->
+
+  <!-- Tests to be run with kvclient.jar -->
+  <patternset id="clientTestClasses">
+    <include name="oracle/kv/KeyTest.class"/>
+    <include name="oracle/kv/OtherSerializationTest.class"/>
+    <include name="oracle/kv/ValueTest.class"/>
+    <include name="oracle/kv/VersionTest.class"/>
+    <include name="oracle/kv/impl/api/StatsTest.class"/>
+    <include name="oracle/kv/impl/api/avro/*Test.class"/>
+    <include name="oracle/kv/impl/api/ops/*Test.class"/>
+    <include name="oracle/kv/hadoop/*Test.class"/>
+  </patternset>
+
+  <property name="timeout" value="1800000"/>
+  <target name="test" depends="compile,jar,jar-ee">
+    <condition property="alltests">
+      <not>
+        <!-- Set the testcase property to a fully qualified test class
+             name to run a single test -->
+        <isset property="testcase"/>
+      </not>
+    </condition>
+
+    <junit printsummary="true"
+	   showoutput="true"
+           timeout="${timeout}"
+	   fork="yes"
+           errorProperty="unittest.failed"
+           failureProperty="unittest.failed"
+	   haltonfailure="false">
+      <jvmarg value="-ea"/>
+      <formatter type="brief" usefile="false" if="test.verbose"/>
+      <formatter type="plain" usefile="false"/>
+      <!-- Set the system property testdestdir, which is used
+	   by TestUtils to select a place to store a JE environment -->
+      <sysproperty key="testdestdir" value="${test.kvsandbox}"/>
+      <!-- Set the system property java.security.policy to the policy file
+           created for unit tests. -->
+      <sysproperty key="java.security.policy" value="${test.policy}"/>
+      <!-- Set the java util logging file to the desired value. For example,
+           to run each test with logging, set
+            -Djava.util.logging.config.file="kvlog.properties" -->
+      <sysproperty key="java.util.logging.config.file"
+		   value="${java.util.logging.config.file}"/>
+      <classpath>
+	<path refid="test.classpath"/>
+      </classpath>
+      <classpath>
+        <path refid="clover.classpath"/>
+      </classpath>
+      <test if="testcase"
+            name="${testcase}"/>
+      <!-- Use -Dskip="blah" to skip some tests.  It is a comma-separated list,
+           for example -Dskip="**/sna/**/*.class,**/rep/**/*.class" will skip
+           all sna and rep tests -->
+      <batchtest unless="testcase">
+	<fileset dir="${test.destdir}">
+	  <include name="**/*Test.class"/>
+          <include name="**/*TestJUnit.class"/>
+	  <exclude name="**/standalone/**/*Test.class"/>
+	  <!-- Avoid running the release compatibility tests here. -->
+	  <exclude name="**/oracle/kv/release/**"/>
+	  <exclude name="${skip}"/>
+	  <!-- Do not run client tests -->
+          <patternset>
+            <invert refid="clientTestClasses"/>
+          </patternset>
+	</fileset>
+      </batchtest>
+    </junit>
+    <fail message="UnitTests failed.Check log and/or reports.">
+      <condition>
+        <and>
+          <istrue value="${unittest.failed}"/>
+	  <isfalse value="${clover.ignorefailure}"/>
+	</and>
+      </condition>
+    </fail>
+    <!-- only call testclient if -Dtestcase was not set -->
+    <condition property="nestedTestcase">
+	<isset property="testcase"/>
+    </condition>
+    <antcall target="testclient"/>
+  </target>
+
+  <!-- Test only the client API classes -->
+  <target name="testclient" unless="nestedTestcase"
+	  depends="compile, jar, copyjar">
+    <junit printsummary="true"
+	   showoutput="true"
+           timeout="${timeout}"
+	   fork="yes"
+           errorProperty="clientunittest.failed"
+           failureProperty="clientunittest.failed"
+	   haltonfailure="false">
+      <jvmarg value="-ea"/>
+      <formatter type="brief" usefile="false" if="test.verbose"/>
+      <formatter type="plain" usefile="false"/>
+      <!-- Set the system property testdestdir, which is used
+	   by TestUtils to select a place to store a JE environment -->
+      <sysproperty key="testdestdir" value="${test.kvsandbox}"/>
+      <!-- Set the system property java.security.policy to the policy file
+           created for unit tests. -->
+      <sysproperty key="java.security.policy" value="${test.policy}"/>
+      <!-- Set the java util logging file to the desired value. For example,
+           to run each test with logging, set
+            -Dlogging.config.file="kvlog.properties" -->
+      <sysproperty key="java.util.logging.config.file"
+		   value="${java.util.logging.config.file}"/>
+      <classpath>
+	<path refid="testclient.classpath"/>
+      </classpath>
+      <classpath>
+        <path refid="clover.classpath"/>
+      </classpath>
+      <test if="testcase"
+            name="${testcase}"/>
+      <batchtest unless="testcase">
+	<fileset dir="${test.destdir}" excludes="${skip}">
+	  <!-- Only run client tests -->
+          <patternset refid="clientTestClasses"/>
+	</fileset>
+      </batchtest>
+    </junit>
+    <fail message="UnitTests failed.Check log and/or reports.">
+      <condition>
+        <and>
+          <istrue value="${clientunittest.failed}"/>
+	  <isfalse value="${clover.ignorefailure}"/>
+	</and>
+      </condition>
+    </fail>
+
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Standalone Tests                                             -->
+  <!-- ============================================================ -->
+
+  <!-- Standalone tests are tests that run on the local host and
+       typically take longer than unit tests.
+
+       Run a standalone test with the 'standalone' target,
+       specifying -Dtestcase=test-name, where test-name is one of the
+       standalone test targets specified in the file standalone.xml in this
+       directory.  Additional program arguments, if any are supported, can be
+       specified using -Dargs=.  If the test is implemented as a Java program,
+       JVM arguments can be specified using -Djvmargs=.
+
+       Standalone tests can be implemented as Java programs or as shell
+       scripts.  In both cases, the test program should:
+
+       - Exit with a non-zero exit status if the test fails, and a zero
+         exit status if it passes
+       - Print the full command line at the start of the test
+       - Allow command line arguments to be repeated, with the last
+         specified argument taking precedence, to permit using -Dargs=
+         to override any default arguments
+       - Output results to standard output, standard error, or to files
+         stored in a specified results directory
+       - Store database files and other work files in a specified
+         scratch directory
+       - Check, as much as practical, for errors and report these as test
+         failures, to reduce the amount of human auditing required of the
+         results
+       - Clean up any outstanding processes at the end of the test
+
+       Individual standalone test targets in standalone.xml should:
+
+       - Use failonerror="true", or specify resultproperty and check its
+         value
+       - Use output="${standalone.logfile}"
+       - Pass ${standalone.resultsdir} as the directory for storing
+         result files
+       - Pass ${standalone.scratchdir} as the directory for storing
+         database files and other work files
+       - Pass program arguments using <arg> followed by
+         <arg "line=${args}"> to permit overriding program arguments
+         using -Dargs="..."
+
+       The standalone ant target will make sure that the results and
+       scratch directories exist and are empty.
+
+       Individual standalone test targets implemented with Java should:
+
+       - Use the <java> task
+       - Use fork="true"
+       - Pass JVM args using <jvmarg> followed by
+         <jvmarg line="${jvmargs}"/> to allow overriding JVM args
+         using -Djvmargs
+  -->
+  <target name="standalone" depends="copyjar-ee, copyjar">
+    <fail unless="testcase"
+          message="The testcase variable must be specified"/>
+    <property name="standalone.testdir"
+              location="${standalone.destdir}/${testcase}"/>
+    <property name="standalone.logfile"
+              location="${standalone.testdir}/test.log"/>
+    <property name="standalone.scratchdir"
+              location="${standalone.testdir}/scratch"/>
+    <property name="standalone.resultsdir"
+              location="${standalone.testdir}/results"/>
+
+    <antcall target="clean-standalone-dir"/>
+
+    <path id="standalone.test.classpath">
+      <pathelement location="${testjarfile}"/>
+      <pathelement location="${standalone.destdir}"/>
+    </path>
+
+    <echo message="Running: ${testcase}"/>
+    <echo message="Overrides: args='${args}' jvmargs='${jvmargs}'"/>
+    <echo message="Output will be stored in: ${standalone.logfile}"/>
+    <ant antfile="standalone.xml"
+         target="${testcase}"
+         inheritrefs="true"/>
+  </target>
+
+  <target name="clean-standalone-dir" unless="standalone.noclean">
+    <delete dir="${standalone.testdir}"/>
+    <mkdir dir="${standalone.testdir}"/>
+    <mkdir dir="${standalone.scratchdir}"/>
+    <mkdir dir="${standalone.resultsdir}"/>
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Build the distribution package.                              -->
+  <!-- ============================================================ -->
+
+  <!-- Make sure we update the version in the build properties file -->
+  <path id="dist.classpath">
+      <path refid="misc.class.path"/>
+      <pathelement location="${dist.destdir}"/>
+  </path>
+
+  <!-- for jar packaging -->
+  <target name="compile-misc" depends="compile-version">
+      <javac srcdir="${miscdir}"
+	     destdir="${dist.destdir}"
+	     includeantruntime="true">
+	  <classpath refid="misc.class.path"/>
+      </javac>
+  </target>
+
+  <target name="compile-version" depends="dep-dirs">
+      <javac srcdir="${srcdir}"
+	     includes="oracle/kv/KVVersion.java"
+	     destdir="${destdir}"
+	     includeantruntime="false">
+      </javac>
+  </target>
+
+  <target name="update-version" depends="compile-misc">
+     <!-- Create an up to date property file for the build -->
+     <exec executable="hg"
+	   failifexecutionfails="false"
+	   outputproperty="release.id"
+           resultproperty="update-version.result"
+           logError="true">
+       <arg value="id"/>
+       <arg value="-i"/>
+     </exec>
+     <!-- Set release.id if the hg call failed -->
+     <condition property="release.id" value="unknown-revision">
+       <or>
+         <not><isset property="update-version.result"/></not>
+         <not><equals arg1="0" arg2="${update-version.result}"/></not>
+       </or>
+     </condition>
+
+     <!-- set the time -->
+     <tstamp>
+       <format property="release.date"
+	       pattern="yyyy-MM-dd hh:mm:ss z"
+	       timezone="UTC"/>
+     </tstamp>
+
+     <java fork="yes" jvm="${jvm}" failonerror="true"
+	   classname="CreateRELEASEFile"
+	   classpathref="dist.classpath" >
+	<jvmarg line="${jvmargs}"/>
+	<arg value="${build.propertyfile}"/>
+	<arg value="${release.id}"/>
+	<arg value="${release.date}"/>
+     </java>
+
+     <!-- read it in -->
+     <property file="${build.propertyfile}"/>
+
+     <!-- The major.minor.patch numbers for the release -->
+     <property name="release.numbers"
+               value="${release.major}.${release.minor}.${release.patch}"/>
+  </target>
+
+  <target name="package-test" depends="build-all">
+    <description>
+      This target builds just the test distribution package
+    </description>
+    <!-- Create a zip just for testing purpose, no need for doc, etc -->
+    <zip basedir="${dist.dir}"
+	 destfile="kvstore-test.zip"
+	 includes="bin/**,exttab/bin/**,lib/**"/>
+  </target>
+
+  <target name="package">
+    <echo message="use package-ce or package-ee"/>
+  </target>
+  <target name="package-ee"
+	  depends="clean-dist,copyjar-ee,build-all,all-javadoc,package-test">
+
+      <description>
+	  The package target builds the distribution package for the
+	  EE release.
+      </description>
+
+      <!-- copy the various distribution files into the dist dir,
+	   adding the current release number and date -->
+      <copy overwrite="true" todir="${dist.dir}">
+	 <filterset>
+	     <filter token="RELEASE_VERSION"
+		     value="${release.version} Enterprise Edition"/>
+	     <filter token="DATE" value="${release.date}"/>
+	 </filterset>
+	 <fileset dir="${docdir}">
+	     <include name="README.txt"/>
+	 </fileset>
+      </copy>
+      <!-- copy the various distribution files into the dist/doc dir,
+	   adding the current release number and date.  Some of these
+	   are duplicates of what is in the top-level.  This is
+	   because the doc dir needs to be self-contained and the
+	   index.html file contains references to (e.g.) the LICENSE file. -->
+      <copy overwrite="true" todir="${dist.dir}/doc">
+	 <filterset>
+	     <filter token="RELEASE_VERSION"
+		     value="${release.version} Enterprise Edition"/>
+	     <filter token="DATE" value="${release.date}"/>
+	 </filterset>
+	 <fileset dir="${docdir}">
+	     <include name="README.txt"/>
+	     <include name="relnotes.html"/>
+	     <include name="quickstart.html"/>
+	     <include name="changelog.html"/>
+	 </fileset>
+      </copy>
+      <copy file="${docdir}/LICENSE-EE.txt" tofile="${dist.dir}/LICENSE.txt"/>
+      <copy file="build.xml" tofile="${dist.dir}/build.xml"/>
+      <copy file="${docdir}/LICENSE-EE.txt"
+	    tofile="${dist.dir}/doc/LICENSE.txt"/>
+      <copy overwrite="true" todir="${dist.dir}/doc">
+	 <filterset>
+	     <filter token="RELEASE_VERSION"
+		     value="${release.version} Enterprise Edition"/>
+	     <filter token="DATE" value="${release.date}"/>
+	 </filterset>
+	 <fileset dir="${docdir}">
+	     <include name="*.txt"/>
+	     <include name="*.css"/>
+	     <include name="*.html"/>
+	     <exclude name="LICENSE*.txt"/>
+	     <exclude name="INSTALL*.txt"/>
+	     <exclude name="relnotes.html"/>
+	     <exclude name="quickstart.html"/>
+	     <exclude name="changelog.html"/>
+	 </fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/examples/externaltables">
+	<fileset dir="${example.srcdir}/externaltables/">
+	  <include name="cookbook.html"/>
+	</fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/GettingStartedGuide" failonerror="false">
+	<fileset dir="${docdir}/GettingStartedGuide">
+	</fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/AdminGuide" failonerror="false">
+	<fileset dir="${docdir}/AdminGuide">
+	</fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/misc">
+	<fileset dir="${docdir}/misc">
+	</fileset>
+      </copy>
+
+      <zip basedir="${dist.dir}"
+	   destfile="kvstore-build.zip"
+	   includes="bin/**,exttab/bin/**,lib/**,examples/**,build.xml,doc/**,*.txt,*.html"
+	   excludes="lib/ycsb.jar,lib/kvstoretest.jar,lib/junit.jar,**/javadoc-build-time.txt,lib/validation-api*.jar"/>
+      <zip destfile="${zipfile-ee}">
+	   <zipfileset src="kvstore-build.zip"
+		       prefix="kv/"
+                       excludes="examples/**, exttab/bin/*"
+                       filemode="444" dirmode="775"/>
+	   <zipfileset src="kvstore-build.zip"
+		       prefix="kv/"
+                       includes="examples/**"
+                       filemode="664" dirmode="775"/>
+	   <zipfileset src="kvstore-build.zip"
+		       prefix="kv/"
+                       includes="exttab/bin/*"
+                       filemode="555" dirmode="775"/>
+      </zip>
+  </target>
+
+  <target name="package-ce"
+	  depends="clean-dist, build-all, all-javadoc, package-test">
+      <description>
+	  The package target builds the distribution package for the
+	  CE release.
+      </description>
+
+      <!-- copy the various distribution files into the dist dir,
+	   adding the current release number and date -->
+      <copy overwrite="true" todir="${dist.dir}">
+	 <filterset>
+	     <filter token="RELEASE_VERSION"
+		     value="${release.version} Community Edition"/>
+	     <filter token="DATE" value="${release.date}"/>
+	 </filterset>
+	 <fileset dir="${docdir}">
+	     <include name="README.txt"/>
+	 </fileset>
+      </copy>
+      <copy file="${docdir}/LICENSE-CE.txt" tofile="${dist.dir}/LICENSE.txt"/>
+      <copy file="build.xml" tofile="${dist.dir}/build.xml"/>
+      <!-- copy the various distribution files into the dist/doc dir,
+	   adding the current release number and date.  Some of these
+	   are duplicates of what is in the top-level.  This is
+	   because the doc dir needs to be self-contained and the
+	   index.html file contains references to (e.g.) the LICENSE file. -->
+      <copy file="${docdir}/LICENSE-CE.txt"
+	    overwrite="true"
+	    tofile="${dist.dir}/doc/LICENSE.txt"/>
+      <copy overwrite="true" todir="${dist.dir}/doc">
+	 <filterset>
+	     <filter token="RELEASE_VERSION"
+		     value="${release.version} Community Edition"/>
+	     <filter token="DATE" value="${release.date}"/>
+	 </filterset>
+	 <fileset dir="${docdir}">
+	     <include name="README.txt"/>
+	     <include name="relnotes.html"/>
+	     <include name="quickstart.html"/>
+	     <include name="changelog.html"/>
+	 </fileset>
+      </copy>
+      <copy overwrite="true" todir="${dist.dir}/doc">
+	 <filterset>
+	     <filter token="RELEASE_VERSION"
+		     value="${release.version} Community Edition"/>
+	     <filter token="DATE" value="${release.date}"/>
+	 </filterset>
+	 <fileset dir="${docdir}">
+	     <include name="*.txt"/>
+	     <include name="*.css"/>
+	     <include name="*.html"/>
+	     <exclude name="LICENSE*.txt"/>
+	     <exclude name="INSTALL*.txt"/>
+	     <exclude name="relnotes.html"/>
+	     <exclude name="quickstart.html"/>
+	     <exclude name="changelog.html"/>
+	 </fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/GettingStartedGuide" failonerror="false">
+	<fileset dir="${docdir}/GettingStartedGuide">
+	</fileset>
+      </copy>
+      <copy todir="${dist.srcdir}">
+	<fileset dir="${srcdir}">
+	  <exclude name="**/exttab"/>
+	  <exclude name="**/exttab/*"/>
+	  <exclude name="**/*.sql"/>
+	  <exclude name="**/snmp/*"/>
+	</fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/AdminGuide" failonerror="false">
+	<fileset dir="${docdir}/AdminGuide">
+	</fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/misc">
+	<fileset dir="${docdir}/misc">
+	</fileset>
+      </copy>
+
+      <zip basedir="${dist.dir}"
+	   destfile="kvstore-build.zip"
+	   includes="bin/**,lib/**,src/**,examples/**,build.xml,doc/**,*.txt,*.html"
+           excludes="exttab/bin/**,lib/ycsb.jar,lib/kvstoretest.jar,lib/junit.jar,**/javadoc-build-time.txt,lib/validation-api*.jar,lib/kvstore-ee.jar,lib/nosql.mib"/>
+      <zip destfile="${zipfile-ce}">
+	   <zipfileset src="kvstore-build.zip"
+		       prefix="kv/"
+                       excludes="examples/**"
+                       filemode="444" dirmode="775"/>
+	   <zipfileset src="kvstore-build.zip"
+		       prefix="kv/"
+                       includes="examples/**"
+                       filemode="664" dirmode="775"/>
+      </zip>
+  </target>
+
+  <target name="package-ce-release" depends="package-ce"
+          description="Create release package for CE release">
+
+    <!-- Add release numbers to directory -->
+    <property name="prefix" value="kv-${release.numbers}"/>
+    <property name="releasedir" value="${builddir}/${prefix}"/>
+    <delete dir="${releasedir}" quiet="yes"/>
+    <unzip src="${zipfile-ce}" dest="${releasedir}">
+      <mapper type="glob" from="kv/*" to="*"/>
+    </unzip>
+
+    <!-- Create zip file -->
+    <property name="kv-ce-release-zip"
+              value="${basedir}/kv-ce-${release.numbers}.zip"/>
+    <delete file="${kv-ce-release-zip}"/>
+    <zip destfile="${kv-ce-release-zip}">
+      <zipfileset dir="${builddir}"
+                  includes="${prefix}/**"
+                  excludes="${prefix}/examples/**"
+                  filemode="444" dirmode="775"/>
+      <zipfileset dir="${builddir}"
+                  includes="${prefix}/examples/**"
+                  filemode="664" dirmode="775"/>
+    </zip>
+    <chmod perm="555" file="${kv-ce-release-zip}"/>
+
+    <!-- Create gzip'ed tar file -->
+    <property name="kv-ce-release-tar-gz"
+              value="${basedir}/kv-ce-${release.numbers}.tar.gz"/>
+    <delete file="${kv-ce-release-tar-gz}"/>
+    <tar destfile="${kv-ce-release-tar-gz}" compression="gzip">
+      <tarfileset dir="${builddir}"
+                  includes="${prefix}/**"
+                  excludes="${prefix}/examples/**"
+                  filemode="444" dirmode="775"
+                  uid="100" username="kv"
+                  gid="100" group="kv"/>
+      <tarfileset dir="${builddir}"
+                  includes="${prefix}/examples/**"
+                  filemode="664" dirmode="775"
+                  uid="100" username="kv"
+                  gid="100" group="kv"/>
+    </tar>
+    <chmod perm="555" file="${kv-ce-release-tar-gz}"/>
+
+    <!-- Clean up -->
+    <delete dir="${releasedir}"/>
+  </target>
+
+  <target name="package-ee-release" depends="package-ee"
+          description="Create release package for EE release">
+
+    <!-- Add release numbers to directory -->
+    <property name="prefix" value="kv-${release.numbers}"/>
+    <property name="releasedir" value="${builddir}/${prefix}"/>
+    <delete dir="${releasedir}" quiet="yes"/>
+    <unzip src="${zipfile-ee}" dest="${releasedir}">
+      <mapper type="glob" from="kv/*" to="*"/>
+    </unzip>
+
+    <!-- Create zip file -->
+    <property name="kv-ee-release-zip"
+              value="${basedir}/kv-ee-${release.numbers}.zip"/>
+    <delete file="${kv-ee-release-zip}"/>
+    <zip destfile="${kv-ee-release-zip}">
+      <zipfileset dir="${builddir}"
+                  includes="${prefix}/**"
+                  excludes="${prefix}/examples/**, ${prefix}/exttab/bin/*"
+                  filemode="444" dirmode="775"/>
+      <zipfileset dir="${builddir}"
+                  includes="${prefix}/examples/**"
+                  filemode="664" dirmode="775"/>
+      <zipfileset dir="${builddir}"
+                  includes="${prefix}/exttab/bin/*"
+                  filemode="555" dirmode="775"/>
+    </zip>
+    <chmod perm="555" file="${kv-ee-release-zip}"/>
+
+    <!-- Create gzip'ed tar file -->
+    <property name="kv-ee-release-tar-gz"
+              value="${basedir}/kv-ee-${release.numbers}.tar.gz"/>
+    <delete file="${kv-ee-release-tar-gz}"/>
+    <tar destfile="${kv-ee-release-tar-gz}" compression="gzip">
+      <tarfileset dir="${builddir}"
+                  includes="${prefix}/**"
+                  excludes="${prefix}/examples/**, ${prefix}/exttab/bin/*"
+                  filemode="444" dirmode="775"
+                  uid="100" username="kv"
+                  gid="100" group="kv"/>
+      <tarfileset dir="${builddir}"
+                  includes="${prefix}/examples/**"
+                  filemode="664" dirmode="775"
+                  uid="100" username="kv"
+                  gid="100" group="kv"/>
+      <tarfileset dir="${builddir}"
+                  includes="${prefix}/exttab/bin/*"
+                  filemode="555" dirmode="775"
+                  uid="100" username="kv"
+                  gid="100" group="kv"/>
+    </tar>
+    <chmod perm="555" file="${kv-ee-release-tar-gz}"/>
+
+    <!-- Clean up -->
+    <delete dir="${releasedir}"/>
+  </target>
+
+  <target name="check-ce-release" depends="update-version">
+    <description>
+      Check the tar and zip files created by the build-ce-release target
+    </description>
+
+    <!-- Compare directory contents.  Don't use the unzip and untar ant
+         tasks, because they don't restore permissions properly -->
+    <property name="ce-zip" value="${builddir}/ce-zip"/>
+    <delete dir="${ce-zip}" quiet="yes"/>
+    <mkdir dir="${ce-zip}"/>
+    <exec executable="unzip" dir="${ce-zip}" failOnError="true">
+      <arg value="-q"/>
+      <arg value="${basedir}/kv-ce-${release.numbers}.zip"/>
+    </exec>
+    <property name="ce-tar" value="${builddir}/ce-tar"/>
+    <delete dir="${ce-tar}" quiet="yes"/>
+    <mkdir dir="${ce-tar}"/>
+    <exec executable="bash" dir="${ce-tar}" failOnError="true">
+      <arg value="-c"/>
+      <arg value="gunzip -c ${basedir}/kv-ce-${release.numbers}.tar.gz
+                  | tar -xpf -"/>
+    </exec>
+    <exec executable="diff" failOnError="true">
+      <arg value="-r"/>
+      <arg value="${ce-zip}"/>
+      <arg value="${ce-tar}"/>
+    </exec>
+    <echo message="Directory contents are the same"/>
+
+    <!-- Compare permissions -->
+    <exec executable="${miscdir}/inventory.sh" dir="${ce-zip}"
+          failOnError="true" output="${builddir}/ce-zip-inventory"
+          logError="true"/>
+    <exec executable="${miscdir}/inventory.sh" dir="${ce-tar}"
+          failOnError="true" output="${builddir}/ce-tar-inventory"
+          logError="true"/>
+    <exec executable="diff" failOnError="true" logError="true">
+      <arg value="${builddir}/ce-zip-inventory"/>
+      <arg value="${builddir}/ce-tar-inventory"/>
+    </exec>
+    <echo message="Directory permissions are the same"/>
+  </target>
+
+  <target name="check-ee-release" depends="update-version">
+    <description>
+      Check the tar and zip files created by the build-ee-release target
+    </description>
+
+    <!-- Compare directory contents.  Don't use the unzip and untar ant
+         tasks, because they don't restore permissions properly -->
+    <property name="ee-zip" value="${builddir}/ee-zip"/>
+    <delete dir="${ee-zip}" quiet="yes"/>
+    <mkdir dir="${ee-zip}"/>
+    <exec executable="unzip" dir="${ee-zip}" failOnError="true">
+      <arg value="-q"/>
+      <arg value="${basedir}/kv-ee-${release.numbers}.zip"/>
+    </exec>
+    <property name="ee-tar" value="${builddir}/ee-tar"/>
+    <delete dir="${ee-tar}" quiet="yes"/>
+    <mkdir dir="${ee-tar}"/>
+    <exec executable="bash" dir="${ee-tar}" failOnError="true">
+      <arg value="-c"/>
+      <arg value="gunzip -c ${basedir}/kv-ee-${release.numbers}.tar.gz
+                  | tar -xpf -"/>
+    </exec>
+    <exec executable="diff" failOnError="true">
+      <arg value="-r"/>
+      <arg value="${ee-zip}"/>
+      <arg value="${ee-tar}"/>
+    </exec>
+    <echo message="Directory contents are the same"/>
+
+    <!-- Compare permissions -->
+    <exec executable="${miscdir}/inventory.sh" dir="${ee-zip}"
+          failOnError="true" output="${builddir}/ee-zip-inventory"
+          logError="true"/>
+    <exec executable="${miscdir}/inventory.sh" dir="${ee-tar}"
+          failOnError="true" output="${builddir}/ee-tar-inventory"
+          logError="true"/>
+    <exec executable="diff" failOnError="true">
+      <arg value="${builddir}/ee-zip-inventory"/>
+      <arg value="${builddir}/ee-tar-inventory"/>
+    </exec>
+    <echo message="Directory permissions are the same"/>
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Build and test RPMs                                          -->
+  <!-- ============================================================ -->
+
+  <target name="build-rpms" depends="update-version, clean-rpms">
+    <description>
+      Build RPM packages using the results of the package-ce-release
+      target.  This target only works on Linux where rpm is supported.
+    </description>
+
+    <!-- Unzip the compressed release tar file -->
+    <mkdir dir="${rpmbuilddir}"/>
+    <gunzip src="kv-ce-${release.numbers}.tar.gz"
+            dest="${rpmbuilddir}/kv-ce.tar"/>
+
+    <!-- Build the binary and source tar files to use for the RPMs -->
+    <property name="rpm-bin-tar"
+              value="${rpmbuilddir}/kv-${release.numbers}.tar.gz"/>
+    <tar destfile="${rpm-bin-tar}" compression="gzip">
+      <tarfileset src="${rpmbuilddir}/kv-ce.tar"
+                  excludes="kv-${release.numbers}/src/**"/>
+    </tar>
+    <property name="rpm-src-tar"
+              value="${rpmbuilddir}/kv-source-${release.numbers}.tar.gz"/>
+    <tar destfile="${rpm-src-tar}" compression="gzip">
+      <mappedresources>
+        <tarfileset src="${rpmbuilddir}/kv-ce.tar"
+                    includes="kv-${release.numbers}/src/**,
+                              kv-${release.numbers}/LICENSE.txt"/>
+        <globmapper from="kv-${release.numbers}/*"
+                    to="kv-source-${release.numbers}/*"/>
+      </mappedresources>
+    </tar>
+
+    <!-- Build the RPMs -->
+    <mkdir dir="${rpmbuilddir}/BUILD"/>
+    <mkdir dir="${rpmbuilddir}/RPMS"/>
+    <mkdir dir="${rpmbuilddir}/SOURCES"/>
+    <mkdir dir="${rpmbuilddir}/SPECS"/>
+    <copy todir="${rpmbuilddir}/SPECS">
+      <fileset dir="${miscdir}/rpm" includes="*.spec"/>
+    </copy>
+    <copy file="${rpm-bin-tar}" todir="${rpmbuilddir}/SOURCES"/>
+    <copy file="${rpm-src-tar}" todir="${rpmbuilddir}/SOURCES"/>
+    <rpm specFile="kv-source.spec"
+         topDir="${rpmbuilddir}"
+         command="-v -bb"
+         failOnError="true"
+         output="${rpmbuilddir}/src-rpm.out"
+         error="${rpmbuilddir}/src-rpm.err"/>
+    <rpm specFile="kv.spec"
+         topDir="${rpmbuilddir}"
+         command="-v -bb"
+         failOnError="true"
+         output="${rpmbuilddir}/bin-rpm.out"
+         error="${rpmbuilddir}/bin-rpm.err"/>
+    <pathconvert property="rpms" pathsep=" ">
+      <fileset dir="${rpmbuilddir}" includes="RPMS/**"/>
+    </pathconvert>
+    <echo message="Built RPMs: ${rpms}"/>
+  </target>
+
+  <target name="test-rpms"
+          description="Test the RPMs created by the build-rpms target">
+    <exec executable="rpm">
+      <arg line="-i -v --test ${rpmbuilddir}/RPMS/noarch/*"/>
+    </exec>
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Build the public API javadoc                                 -->
+  <!-- ============================================================ -->
+
+  <target name="all-javadoc" depends="javadoc, example-javadoc"/>
+
+  <target name="can-we-skip-javadoc">
+    <uptodate targetfile="${javadoc}/javadoc-build-time.txt"
+	      property="javadoc.not.needed">
+      <srcfiles dir="${srcdir}" includes="**/*"/>
+    </uptodate>
+  </target>
+
+  <target name="javadoc" depends="can-we-skip-javadoc, update-version,
+				  gen-messages, ivy-resolve"
+	  unless="javadoc.not.needed">
+
+    <javadoc sourcepath="${srcdir}"
+	     destdir="${javadoc}"
+	     excludepackagenames="oracle.kv.impl.*"
+             version="true"
+             nodeprecated="false"
+             protected="true"
+             source="1.6"
+             use="true"
+             docletpath="${docdir}/HidingDoclet.jar"
+             stylesheetfile="${docdir}/style.css"
+             windowtitle="Oracle NoSQL Database API">
+      <classpath refid="src.classpath"/>
+      <arg value="-author"/>
+      <doclet name="HidingDoclet"/>
+      <header><![CDATA[<b>Oracle NoSQL Database</b><br><font size=\"-1\"> version ${release.version}</font>]]>
+      </header>
+      <bottom><![CDATA[<font size=1>Copyright (c) 2011, 2013 Oracle and/or its affiliates.  All rights reserved.</font>]]> </bottom>
+      <package name="oracle.kv"/>
+      <package name="oracle.kv.lob"/>
+      <package name="oracle.kv.avro"/>
+      <package name="oracle.kv.exttab"/>
+      <package name="oracle.kv.stats"/>
+      <package name="oracle.kv.hadoop"/>
+      <package name="oracle.kv.mgmt.jmx"/>
+      <link href="http://download.oracle.com/javase/6/docs/api"/>
+      <link href="http://avro.apache.org/docs/1.6.3/api/java"/>
+      <link href="http://jackson.codehaus.org/1.8.8/javadoc"/>
+      <arg value="-J-Dhttp.proxyHost=${javadoc.proxy.host}"/>
+      <arg value="-J-Dhttp.proxyPort=${javadoc.proxy.port}"/>
+    </javadoc>
+
+    <echo file="${javadoc}/javadoc-build-time.txt" message="${release.date}"/>
+
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Build the example javadoc                                    -->
+  <!-- ============================================================ -->
+  <target name="can-we-skip-example-javadoc">
+    <uptodate targetfile="${example.javadoc}/javadoc-build-time.txt"
+	      property="javadoc.not.needed">
+      <srcfiles dir="${example.srcdir}" includes="**/*"/>
+    </uptodate>
+  </target>
+
+  <target name="example-javadoc" depends="can-we-skip-example-javadoc,
+					  gen-messages, update-version,
+					  ivy-resolve"
+	  unless="javadoc.not.needed">
+    <!-- set the time -->
+    <tstamp>
+       <format property="release.date" pattern="MMMMMMMM dd, yyyy"/>
+    </tstamp>
+
+    <javadoc sourcepath="${srcdir}:${example.srcdir}"
+	     destdir="${example.javadoc}"
+	     excludepackagenames="oracle.kv.*"
+             version="true"
+             nodeprecated="false"
+             access="package"
+             source="1.6"
+             use="true"
+             docletpath="${docdir}/HidingDoclet.jar"
+             stylesheetfile="${docdir}/style.css"
+             windowtitle="Oracle NoSQL Database Examples">
+      <classpath refid="src.classpath"/>
+      <arg value="-author"/>
+      <doclet name="HidingDoclet"/>
+      <header><![CDATA[<b>Oracle NoSQL Database Examples</b><br><font size=\"-1\"> version ${release.version}</font>]]>
+      </header>
+      <bottom><![CDATA[<font size=1>Copyright (c) 2011, 2013 Oracle and/or its affiliates.  All rights reserved.</font>]]> </bottom>
+      <package name="avro"/>
+      <package name="externaltables"/>
+      <package name="hello"/>
+      <package name="hadoop"/>
+      <package name="schema"/>
+      <link href="../javadoc"/>
+      <link href="http://hadoop.apache.org/common/docs/stable/api"/>
+      <link href="http://download.oracle.com/javase/6/docs/api"/>
+      <arg value="-J-Dhttp.proxyHost=${javadoc.proxy.host}"/>
+      <arg value="-J-Dhttp.proxyPort=${javadoc.proxy.port}"/>
+    </javadoc>
+    <echo file="${example.javadoc}/javadoc-build-time.txt" message="${release.date}"/>
+  </target>
+
+  <!-- ============================================================ -->
+  <!-- Build and check documentation                                -->
+  <!-- ============================================================ -->
+
+  <target name="build-doc"
+          description="Build documentation from documentation repository">
+    <ant antfile="build-doc.xml" target="build-doc" inheritrefs="true"/>
+  </target>
+
+  <target name="spellcheck-doc"
+          description="Check for spelling errors in HTML documentation files">
+    <ant antfile="build-doc.xml" target="spellcheck-doc" inheritrefs="true"/>
+  </target>
+
+  <target name="aspell-class-words"
+          description="Generate aspell word list for API"
+          depends="copyjar-ee, compile-misc">
+    <ant antfile="build-doc.xml" target="aspell-class-words"
+         inheritrefs="true"/>
+  </target>
+
+  <!-- ==================================================================== -->
+  <!-- Clover, code coverage. To run with clover                            -->
+  <!--     1. Set the clover.libdir property above.                         -->
+  <!--     2. Make sure the clover.jar and clover.license are in            -->
+  <!--           the $clover.libdir directory.                              -->
+  <!--     3. Run "ant with.clover" to check clover is configured correctly.-->
+  <!--     4. Run "ant clover-test" to run code coverage against unnittests.-->
+  <!-- ==================================================================== -->
+  <target name="with.clover">
+    <taskdef resource="cloverlib.xml" classpath="clover.classpath"/>
+    <taskdef resource="cloverjunitlib.xml" classpath="clover.classpath"/>
+    <clover-setup initString="${clover.tmpdir}/kvstorecoverage.db"
+                  flushpolicy="interval"
+                  flushinterval="5000">
+    </clover-setup>
+  </target>
+
+  <target name="clover.html" depends="with.clover">
+    <clover-report>
+      <current outfile="clover_html"
+               title="Code Coverage Test for Oracle NoSQL Database">
+        <format type="html" orderBy="ElementsCoveredAsc"/>
+        <testsources dir="test/oracle" includes="**/*.java"/>
+      </current>
+    </clover-report>
+  </target>
+
+  <target name="clover.pdf" depends="with.clover">
+    <clover-pdf-report outfile="coverage.pdf"/>
+  </target>
+
+  <target name="clover.xml" depends="with.clover">
+    <clover-report>
+      <current outfile="coverage.xml">
+        <format type="xml"/>
+      </current>
+    </clover-report>
+  </target>
+
+  <target name="clover.log" depends="with.clover">
+    <clover-log/>
+  </target>
+
+  <target name="clover-test" depends="clean, with.clover">
+    <antcall target="test" />
+    <antcall target="clover.html"/>
+  </target>
+
+  <target name="clover-clean">
+    <delete dir="${clover.tmpdir}"/>
+  </target>
+
+  <!-- ==================================================================== -->
+  <!-- Checkstyle                                                           -->
+  <!-- ==================================================================== -->
+
+  <target name="checkstyle" depends="dep-dirs, ivy-resolve"
+          description="Run checkstyle on all source files">
+    <!-- Define the checkstyle task -->
+    <taskdef resource="checkstyletask.properties"
+             classpathref="checkstyle.classpath"/>
+    <checkstyle config="misc/kvstore_checks.xml">
+      <classpath>
+        <path refid="src.classpath"/>
+        <path location="${destdir}"/>
+      </classpath>
+      <fileset dir="${srcdir}" includes="${checkstyle.include}"/>
+      <formatter type="plain"/>
+    </checkstyle>
+  </target>
+
+  <!-- ==================================================================== -->
+  <!-- FindBugs                                                             -->
+  <!-- ==================================================================== -->
+
+  <target name="findbugs" depends="jar"
+          description="Run findbugs on kvstore.jar">
+    <!-- Define the findbugs task -->
+    <taskdef name="findbugs"
+             classpath="${extlibdir}/findbugs-ant.jar"
+             classname="edu.umd.cs.findbugs.anttask.FindBugsTask"/>
+    <!-- Convert the path reference to a property, since FindBugs
+         doesn't understand path references.  Only do the conversion
+         after Ivy resolution has occurred, since pathconvert seems to
+         only includes entries when the files are present. -->
+    <pathconvert property="findbugs.classpath" refid="findbugs.classpath"/>
+    <findbugs classpath="${findbugs.classpath}"
+              pluginList=""
+              output="${findbugs.output}"
+              outputFile="${findbugs.output.file}"
+              failOnError="true"
+              errorProperty="findbugs.errors"
+              warningsProperty="findbugs.warnings">
+      <class location="${jarfile}"/>
+      <sourcePath path="${srcdir}"/>
+      <auxClasspath>
+        <path refid="src.classpath"/>
+        <path refid="webapp.classpath"/>
+      </auxClasspath>
+    </findbugs>
+    <fail if="findbugs.errors"
+          message="Findbugs failed"/>
+    <fail if="findbugs.warnings"
+          message="Findbugs produced warnings"/>
+  </target>
+
+  <!-- ==================================================================== -->
+  <!-- Eclipse warnings                                                     -->
+  <!-- ==================================================================== -->
+
+  <target name="warnings" depends="jar-ee"
+          description="Generate Eclipse warnings">
+
+    <fail message="Only works on Unix/Linux">
+      <condition><not><os family="unix"/></not></condition>
+    </fail>
+
+    <fail message="${eclipse.jar} not specified or does not exist">
+      <condition><not><available file="${eclipse.jar}"/></not></condition>
+    </fail>
+
+    <exec executable="find" output="warnings.tmp1">
+      <arg value="${srcdir}"/>
+      <arg value="${example.srcdir}"/>
+      <arg value="${test.srcdir}"/>
+      <arg value="-name"/>
+      <arg value="*.java"/>
+    </exec>
+
+    <exec executable="grep" output="warnings.tmp2">
+      <arg value="-v"/>
+      <arg value="oracle\/kv\/release\/"/>
+      <arg file="warnings.tmp1"/>
+    </exec>
+
+    <java jar="${eclipse.jar}" output="warnings"
+          fork="true" resultproperty="warnings.resultproperty">
+      <arg value="-cp"/>
+      <arg pathref="test.classpath"/>
+      <arg value="-d"/>
+      <arg value="none"/>
+      <arg value="-1.6"/>
+      <arg value="-properties"/>
+      <arg file="${eclipse.properties}"/>
+      <arg value="-enableJavadoc"/>
+      <arg line="${warnings.format}"/>
+      <arg value="@warnings.tmp2"/>
+    </java>
+
+    <delete file="warnings.tmp1"/>
+    <delete file="warnings.tmp2"/>
+
+    <fail message="Eclipse compile failed, see file: warnings">
+      <condition>
+        <isfailure code="${warnings.resultproperty}"/>
+      </condition>
+    </fail>
+
+    <fail message="See file: warnings">
+      <condition>
+        <length file="warnings" when="greater" length="0"/>
+      </condition>
+    </fail>
+
+    <echo message="No warnings are present"/>
+  </target>
+
+</project>
